@@ -97,7 +97,6 @@ void B4bSteppingAction::UserSteppingAction(const G4Step *step)
 
   if (particleDef == opticalphoton)
   {
-
     fillOPInfo(step, false);
   }
   //   === end of checking optical photon ===
@@ -278,11 +277,7 @@ vector<double> B4bSteppingAction::UserCerenkov(const G4Step *step)
       theParticle->GetParticleDefinition();
   G4int pdgcode = abs(theParticle->GetPDGcode());
 
-  if (particleDef == opticalphoton)
-  {
-    // do noting for now
-  }
-  else
+  if (particleDef != opticalphoton)
   { // particle != opticalphoton
     // print how many Cerenkov and scint photons produced this step
     // this demonstrates use of GetNumPhotons()
@@ -882,7 +877,7 @@ void B4bSteppingAction::fillOPInfo(const G4Step *step, bool verbose)
         photon.exitPosition = exitPosition / cm;
         photon.exitMomentum = exitMomentum / GeV;
         photon.exitTime = track->GetGlobalTime() / ns;
-        photon.exitFiber = preStepPoint->GetTouchable()->GetVolume()->GetCopyNo();
+        // photon.exitFiber = preStepPoint->GetTouchable()->GetVolume()->GetCopyNo();
 
         if (verbose)
         {
