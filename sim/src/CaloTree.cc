@@ -201,6 +201,9 @@ CaloTree::CaloTree(string macFileName, int argc, char **argv)
   tree->Branch("truthhit_edepbirk", &m_edepbirktruth);
   tree->Branch("truthhit_ncer", &m_ncertruth);
   tree->Branch("truthhit_ncercap", &m_ncercaptruth);
+  tree->Branch("truthhit_layerNumber", &m_layerNumber);
+  tree->Branch("truthhit_rodNumber", &m_rodNumber);
+  tree->Branch("truthhit_fiberNumber", &m_fiberNumber);
 
   tree->Branch("eCalotruth", &m_eCalotruth);
   tree->Branch("eWorldtruth", &m_eWorldtruth);
@@ -376,12 +379,10 @@ void CaloTree::EndEvent()
     m_nhitstruth = m_pidtruth.size();
 
     // optical photon hits
-    int nOPs = 0;
     for (auto const photon : photonData)
     {
       // if (photon.exitTime == 0.0)
       //   continue;
-      nOPs++;
       mP_trackid.push_back(photon.trackID);
       mP_pos_produced_x.push_back(photon.productionPosition.x());
       mP_pos_produced_y.push_back(photon.productionPosition.y());
@@ -411,7 +412,7 @@ void CaloTree::EndEvent()
 
       // std::cout << "Propagation length in z " << photon.exitPosition.z() - photon.productionPosition.z() << " speed " << (photon.exitTime - photon.productionTime) / (photon.exitPosition.z() - photon.productionPosition.z()) << " costheta " << photon.productionMomentum.z() / photon.productionMomentum.mag() << std::endl;
     }
-    mP_nOPs = nOPs;
+    mP_nOPs = photonData.size();
 
     //
     tree->Fill();
@@ -481,6 +482,9 @@ void CaloTree::clearCaloTree()
   m_edepbirktruth.clear();
   m_ncertruth.clear();
   m_ncercaptruth.clear();
+  m_layerNumber.clear();
+  m_rodNumber.clear();
+  m_fiberNumber.clear();
 
   m_eCalotruth = 0.0;
   m_eWorldtruth = 0.0;
@@ -516,6 +520,36 @@ void CaloTree::clearCaloTree()
   m_tslice3dCC.clear();
   m_ph3dCC.clear();
   m_sum3dCC = 0.0;
+
+  // clean photons
+  photonData.clear();
+  mP_nOPs = 0;
+  mP_trackid.clear();
+  mP_pos_produced_x.clear();
+  mP_pos_produced_y.clear();
+  mP_pos_produced_z.clear();
+  mP_mom_produced_x.clear();
+  mP_mom_produced_y.clear();
+  mP_mom_produced_z.clear();
+  mP_pos_final_x.clear();
+  mP_pos_final_y.clear();
+  mP_pos_final_z.clear();
+  mP_mom_final_x.clear();
+  mP_mom_final_y.clear();
+  mP_mom_final_z.clear();
+  mP_time_produced.clear();
+  mP_time_final.clear();
+  mP_isCerenkov.clear();
+  mP_isScintillation.clear();
+  mP_productionFiber.clear();
+  mP_finalFiber.clear();
+  mP_isCoreC.clear();
+  mP_isCoreS.clear();
+  mP_isCladC.clear();
+  mP_isCladS.clear();
+  mP_pol_x.clear();
+  mP_pol_y.clear();
+  mP_pol_z.clear();
 }
 
 // ########################################################################
@@ -540,6 +574,9 @@ void CaloTree::accumulateHits(CaloHit ah)
     m_edepbirktruth.push_back(ah.edepbirk);
     m_ncertruth.push_back(ah.ncer);
     m_ncercaptruth.push_back(ah.ncercap);
+    m_layerNumber.push_back(ah.layerNumber);
+    m_rodNumber.push_back(ah.rodNumber);
+    m_fiberNumber.push_back(ah.fiberNumber);
   }
 
   CaloID id = ah.caloid;

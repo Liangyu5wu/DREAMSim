@@ -168,7 +168,7 @@ void B4bSteppingAction::UserSteppingAction(const G4Step *step)
   if (thisName.compare(0, 3, "Rod") == 0)
   {
     caloType = 1;
-    fiberNumber = 0;
+    fiberNumber = -1;
     holeNumber = 0;
     rodNumber = touchable->GetCopyNumber(0);
     layerNumber = touchable->GetCopyNumber(1);
@@ -189,6 +189,10 @@ void B4bSteppingAction::UserSteppingAction(const G4Step *step)
 
   if (caloType == 2 || caloType == 3)
   {
+    // todo: there might be better ways to get these information.
+    // 0 is core number,
+    // 1 is fiber/clad nummber (since core is in clad)
+    // 2 is hole, 3 is rod, 4 is layer
     fiberNumber = touchable->GetCopyNumber(1);
     holeNumber = touchable->GetCopyNumber(2);
     rodNumber = touchable->GetCopyNumber(3);
@@ -215,6 +219,9 @@ void B4bSteppingAction::UserSteppingAction(const G4Step *step)
   aHit.y = posA.y() / cm;
   aHit.z = posA.z() / cm;
   aHit.pid = pdgcode;
+  aHit.fiberNumber = fiberNumber;
+  aHit.rodNumber = rodNumber;
+  aHit.layerNumber = layerNumber;
   // if (fabs(pdgcode) > 1e9)
   //{
   //   // https://indico.ph.tum.de/event/3955/sessions/752/attachments/2741/3099/Day3_Physics.pdf

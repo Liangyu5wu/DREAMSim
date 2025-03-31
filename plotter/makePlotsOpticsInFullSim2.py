@@ -22,7 +22,7 @@ chains['pion'] = ROOT.TChain("tree")
 
 # loops = [('ele', elefile), ('pion', pionfile), ('neu', neufile)]
 loops = [('ele', elefile), ('pion', pionfile)]
-# loops = [('pion', pionfile)]
+#loops = [('pion', pionfile)]
 
 rdfs = OrderedDict()
 
@@ -43,6 +43,23 @@ for part, filename in loops:
                 break
     rdfs[part] = ROOT.RDataFrame(chains[part])
 
+nEvts = OrderedDict()
+nEvts['ele'] = rdfs['ele'].Count().GetValue()
+nEvts['pion'] = rdfs['pion'].Count().GetValue()
+# nEvts['neu'] = rdfs['neu'].Count().GetValue()
+print("Number of events for electrons: ", nEvts['ele'])
+print("Number of events for pions: ", nEvts['pion'])
+# print("Number of events for neutrons: ", nEvts['neu'])
+
+rdfs['ele'] = rdfs['ele'].Define("eventweight", f"1.0 / {nEvts['ele']}")
+rdfs['pion'] = rdfs['pion'].Define("eventweight", f"1.0 / {nEvts['pion']}")
+
+rdfs['ele'] = rdfs['ele'].Define("eweight", f"truthhit_edep/ {nEvts['ele']}")
+rdfs['pion'] = rdfs['pion'].Define(
+    "eweight", f"truthhit_edep/ {nEvts['pion']}")
+# rdfs['neu'] = rdfs['neu'].Define("eweight", f"truthhit_edep/ {nEvts['neu']}")
+
+
 rdfs_new = OrderedDict()
 for part in rdfs.keys():
     rdfs_new[part] = rdfs[part].Define("eTotaltruth", "eLeaktruth + eCalotruth + eWorldtruth + eInvisible") \
@@ -52,23 +69,25 @@ for part in rdfs.keys():
     # optics features
     rdfs_new[part] = rdfs_new[part].Define("OP_passEnd", "OP_pos_final_z > 99.0") \
         .Define("OP_passEnd_isCoreC", "OP_passEnd && OP_isCoreC") \
-        .Define("OP_passEnd_isCoreS", "OP_passEnd && OP_isCoreS")
-
-
+        .Define("OP_passEnd_isCoreS", "OP_passEnd && OP_isCoreS") \
+        .Define("OP_passEnd_normalized", "OP_passEnd * eventweight") \
+        .Define("OP_passEnd_isCoreC_normalized", "OP_passEnd_isCoreC * eventweight") \
+        .Define("OP_passEnd_isCoreS_normalized", "OP_passEnd_isCoreS * eventweight")
+        
+    rdfs_new[part] = rdfs_new[part].Define("nOPs_produced", "Sum(OP_time_produced > 0.)") \
+        .Define("nOPs_produced_isCoreC", "Sum(OP_time_produced > 0. && OP_isCoreC)") \
+        .Define("nOPs_produced_isCoreS", "Sum(OP_time_produced > 0. && OP_isCoreS)") \
+        .Define("nOPs_passEnd", "Sum(OP_passEnd)") \
+        .Define("nOPs_passEnd_isCoreC", "Sum(OP_passEnd_isCoreC)") \
+        .Define("nOPs_passEnd_isCoreS", "Sum(OP_passEnd_isCoreS)") \
+        .Define("capEff", "float(nOPs_passEnd) / nOPs_produced") \
+        .Define("capEff_isCoreC", "float(nOPs_passEnd_isCoreC) / nOPs_produced_isCoreC") \
+        .Define("capEff_isCoreS", "float(nOPs_passEnd_isCoreS) / nOPs_produced_isCoreS")
+        
+    # energy deposit in the "center of the calorimeter"
+    rdfs_new[part] = rdfs_new[part].Define("eDep_center", "Sum(truthhit_edep * (truthhit_layerNumber == 40 && truthhit_rodNumber == 45))")
+            
 rdfs = rdfs_new
-
-nEvts = OrderedDict()
-nEvts['ele'] = rdfs['ele'].Count().GetValue()
-nEvts['pion'] = rdfs['pion'].Count().GetValue()
-# nEvts['neu'] = rdfs['neu'].Count().GetValue()
-print("Number of events for electrons: ", nEvts['ele'])
-print("Number of events for pions: ", nEvts['pion'])
-# print("Number of events for neutrons: ", nEvts['neu'])
-
-rdfs['ele'] = rdfs['ele'].Define("eweight", f"truthhit_edep/ {nEvts['ele']}")
-rdfs['pion'] = rdfs['pion'].Define(
-    "eweight", f"truthhit_edep/ {nEvts['pion']}")
-# rdfs['neu'] = rdfs['neu'].Define("eweight", f"truthhit_edep/ {nEvts['neu']}")
 
 histos = OrderedDict()
 figures = ['eLeaktruth', 'eCalotruth', 'eTotaltruth', 'eTotalGeant',
@@ -77,7 +96,11 @@ figures = ['eLeaktruth', 'eCalotruth', 'eTotaltruth', 'eTotalGeant',
            'time', 'time_zoomed',
            'truthhit_x_vs_truthhit_y', 'truthhit_x_vs_truthhit_z', 'truthhit_r_vs_truthhit_z',
            'time_vs_truthhit_z', 'time_vs_truthhit_r',
-           "OP_time_produced", "OP_time_final", "OP_time_final_vs_OP_pos_produced_z"]
+           "OP_time_produced", "OP_time_final", "OP_time_final_vs_OP_pos_produced_z",
+           "eDep_center", "eDep_center_vs_nOPs_produced", "eDep_center_vs_nOPs_passEnd",
+           "nOPs_produced", "nOPs_passEnd", "capEff"]
+
+
 evtlist = [1, 3, 5, 10, 15]
 for i in evtlist:
     figures.append(f"event_{i}_truthhit_x_vs_truthhit_y")
@@ -91,6 +114,19 @@ for fig in figures:
 
 for part, rdf in rdfs.items():
     suffix = "_" + part
+    
+    histos['nOPs_produced'][part] = rdf.Histo1D(
+        ("nOPs_produced" + suffix, "nOPs_produced", 50, 0, 6e4), "nOPs_produced")
+    histos['nOPs_passEnd'][part] = rdf.Histo1D(
+        ("nOPs_passEnd" + suffix, "nOPs_passEnd", 50, 0, 2e3), "nOPs_passEnd")
+    histos['capEff'][part] = rdf.Histo1D(
+        ("capEff" + suffix, "capEff", 50, 0, 0.1), "capEff")
+    histos['eDep_center'][part] = rdf.Histo1D(
+        ("eDep_center" + suffix, "eDep_center", 50, 0, 0.5), "eDep_center")
+    histos['eDep_center_vs_nOPs_produced'][part] = rdf.Histo2D(
+        ("eDep_center_vs_nOPs_produced" + suffix, "eDep_center_vs_nOPs_produced", 50, 0, 0.5, 50, 0, 6e4), "eDep_center", "nOPs_produced")
+    histos['eDep_center_vs_nOPs_passEnd'][part] = rdf.Histo2D(
+        ("eDep_center_vs_nOPs_passEnd" + suffix, "eDep_center_vs_nOPs_passEnd", 50, 0, 0.5, 50, 0, 2e3), "eDep_center", "nOPs_passEnd")
 
     histos['eLeaktruth'][part] = rdf.Histo1D(
         ("eLeaktruth" + suffix, "eLeaktruth", 50, 0, 20.0), "eLeaktruth")
@@ -158,11 +194,11 @@ for part, rdf in rdfs.items():
         oppart = part + "_" + fib
 
         histos['OP_time_produced'][oppart] = rdf.Histo1D(
-            ("OP_time_produced" + suffix, "OP_time_produced", 50, 0, 5), "OP_time_produced", f"OP_passEnd_{fib}")
+            ("OP_time_produced" + suffix, "OP_time_produced", 50, 0, 5), "OP_time_produced", f"OP_passEnd_{fib}_normalized")
         histos['OP_time_final'][oppart] = rdf.Histo1D(
-            ("OP_time_final" + suffix, "OP_time_final", 50, 5, 17), "OP_time_final", f"OP_passEnd_{fib}")
+            ("OP_time_final" + suffix, "OP_time_final", 50, 5, 17), "OP_time_final", f"OP_passEnd_{fib}_normalized")
         histos["OP_time_final_vs_OP_pos_produced_z"][oppart] = rdf.Histo2D(
-            ("OP_time_final_vs_OP_pos_produced_z" + suffix, "OP_time_final_vs_OP_pos_produced_z", 50, 6, 17, 50, -100, 100), "OP_time_final", "OP_pos_produced_z", f"OP_passEnd_{fib}")
+            ("OP_time_final_vs_OP_pos_produced_z" + suffix, "OP_time_final_vs_OP_pos_produced_z", 50, 6, 17, 50, -100, 100), "OP_time_final", "OP_pos_produced_z", f"OP_passEnd_{fib}_normalized")
 
 
 colormaps = {
@@ -209,6 +245,16 @@ DrawHistos(list(histos['eCentruth'].values()), list(histos['eCentruth'].keys(
 DrawHistos(list(histos['eScintruth'].values()), list(histos['eScintruth'].keys(
 )), 1, 5, "SFiber Energy [GeV]", 1e-3, 1e2, "Fraction of events", "eScintruth", **args)
 
+DrawHistos(list(histos['nOPs_produced'].values()), list(histos['nOPs_produced'].keys(
+)), 0, 6e4, "Number of OPs produced", 1e-3, 1e2, "Fraction of events", "nOPs_produced", **args)
+DrawHistos(list(histos['nOPs_passEnd'].values()), list(histos['nOPs_passEnd'].keys(
+)), 0, 2e3, "Number of OPs reaching the end", 1e-3, 1e2, "Fraction of events", "nOPs_passEnd", **args)
+DrawHistos(list(histos['capEff'].values()), list(histos['capEff'].keys(
+)), 0, 0.1, "Capture Efficiency", 1e-3, 1e2, "Fraction of events", "capEff", **args)
+DrawHistos(list(histos['eDep_center'].values()), list(histos['eDep_center'].keys(
+)), 0, 0.5, "Energy deposited in the center of the calorimeter [GeV]", 1e-3, 1e2, "Fraction of events", "eDep_center", **args)
+
+
 args['donormalize'] = False
 DrawHistos(list(histos['truthhit_x'].values()), list(histos['truthhit_x'].keys(
 )), -20, 20, "x [cm]", 1e-3, 1e2, "Deposited Energy [GeV]", "truthhit_x", **args)
@@ -247,9 +293,10 @@ for part in rdfs.keys():
                "r [cm]", -100, 100, "z [cm]", f"truthhit_r_vs_truthhit_z_{part}", **args)
 
     DrawHistos([histos['time_vs_truthhit_z'][part]], [], 0, 20,
-               "Arrivial time [ns]", -100, 100, "Production z [cm]", f"time_vs_truthhit_z_{part}", **args)
+               "Global time [ns]", -100, 100, "Production z [cm]", f"time_vs_truthhit_z_{part}", **args)
     DrawHistos([histos['time_vs_truthhit_r'][part]], [], 0, 20,
-               "Arrivial time [ns]", 0, 30, "Production r [cm]", f"time_vs_truthhit_r_{part}", **args)
+               "Global time [ns]", 0, 30, "Production r [cm]", f"time_vs_truthhit_r_{part}", **args)
+    
 
     # event displays
     for i in evtlist:
@@ -264,12 +311,23 @@ for part in rdfs.keys():
         ], 0, 20, "Time [ns]", -100, 100, "z [cm]", f"event_{i}_time_vs_truthhit_z_{part}", **args)
         DrawHistos([histos[f"event_{i}_time_vs_truthhit_r"][part]], [
         ], 0, 20, "Time [ns]", 0, 30, "r [cm]", f"event_{i}_time_vs_truthhit_r_{part}", **args)
+        
 
-args['zmax'] = 1e4
-args['zmin'] = 1e0
+args['zmax'] = 1e3
+args['zmin'] = 1e-2
+for part in rdfs.keys():
+    DrawHistos([histos['eDep_center_vs_nOPs_produced'][part]], [], 0, 0.5,
+               "E dep in the center hole [GeV]", 0, 6e4, "Number of OPs produced", f"eDep_center_vs_nOPs_produced_{part}", **args)
+    DrawHistos([histos['eDep_center_vs_nOPs_passEnd'][part]], [], 0, 0.5,
+                "E dep in the center hole [GeV]", 0, 2e3, "Number of OPs reaching the end", f"eDep_center_vs_nOPs_passEnd_{part}", **args)
+
+args['zmax'] = 1e2
+args['zmin'] = 1e-4
 for oppart in histos["OP_time_produced"].keys():
     DrawHistos([histos["OP_time_final_vs_OP_pos_produced_z"][oppart]], [], 7, 14,
                "Arrival time [ns]", -100, 100, "Production z [cm]", f"OP_time_final_vs_OP_pos_produced_z_{oppart}", **args)
+    
+
 
 
 print("Done")

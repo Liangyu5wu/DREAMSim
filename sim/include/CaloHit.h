@@ -29,6 +29,9 @@ public:
    double edepbirk;
    double ncer;    // number of cerenkov photons
    double ncercap; // number of cerenkov photons
+   int layerNumber;
+   int rodNumber;
+   int fiberNumber;
 };
 
 #endif
