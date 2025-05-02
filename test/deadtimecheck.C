@@ -10,6 +10,7 @@
 #include <sstream>
 #include <vector>
 #include <map>
+#include <cmath>
 #include <filesystem>
 #include <algorithm>
 #include <iomanip>
@@ -120,34 +121,34 @@ int Plot2dposition(
             
             int numPhotons = pos_x->size();
             for (int i = 0; i < numPhotons; i++) {
-                if ((*pos_z)[i] > 80 && (*isCoreC)[i]) {
+                if ((*pos_z)[i] <= 80 || (*isCoreC)[i]==0) continue;
+                if ( (*pos_x)[i] <= xMin || (*pos_x)[i] >= xMax ) continue;
+                if ( (*pos_y)[i] <= yMin || (*pos_y)[i] >= yMax ) continue;
  
-                    int binX = eventHist->GetXaxis()->FindBin((*pos_x)[i]);
-                    int binY = eventHist->GetYaxis()->FindBin((*pos_y)[i]);
+                int binX = eventHist->GetXaxis()->FindBin((*pos_x)[i]);
+                int binY = eventHist->GetYaxis()->FindBin((*pos_y)[i]);
+                int binKey = binX * 1000000 + binY;
                     
-                    int binKey = binX * 10000 + binY;
+                double currentTime = (*time_final)[i];
                     
-                    double currentTime = (*time_final)[i];
-                    
-                    bool canAdd = true;
-                    if (lastTimeInBin.find(binKey) != lastTimeInBin.end()) {
-                        double lastTime = lastTimeInBin[binKey];
-                        if (currentTime - lastTime < deadTime) {
-                            canAdd = false;
-                            rejectedByDeadtimeInFile++;
-                        }
-                    }
-                    
-                    if (canAdd) {
-                        eventHist->SetBinContent(binX, binY, eventHist->GetBinContent(binX, binY) + 1);
-                        
-                        lastTimeInBin[binKey] = currentTime;
-                        
-                        photonsInFile++;
+                bool canAdd = true;
+
+                if (lastTimeInBin.find(binKey) != lastTimeInBin.end()) {
+                    double lastTime = lastTimeInBin[binKey];
+                    if (std::abs(currentTime - lastTime) < deadTime) {
+                        canAdd = false;
+                        rejectedByDeadtimeInFile++;
                     }
                 }
+                    
+                if (canAdd) {
+                    eventHist->SetBinContent(binX, binY, eventHist->GetBinContent(binX, binY) + 1);
+                    lastTimeInBin[binKey] = currentTime;
+                    photonsInFile++;
+                }
+                
             }
-            
+
             for (int ix = 1; ix <= xBins; ix++) {
                 for (int iy = 1; iy <= yBins; iy++) {
                     if (eventHist->GetBinContent(ix, iy) > 0) {
@@ -170,10 +171,7 @@ int Plot2dposition(
         cout << "  Processed " << processedEventsInFile << " events" << endl;
         cout << "  Found " << photonsInFile << " photons passing criteria" << endl;
         cout << "  Added " << addedPhotonsInFile << " photons to histogram" << endl;
-        if (deadTime > 0) {
-            cout << "  Rejected " << rejectedByDeadtimeInFile << " photons due to " 
-                 << deadTime << " ns deadtime" << endl;
-        }
+        cout << "  Rejected " << rejectedByDeadtimeInFile << " photons due to " << deadTime << " ns deadtime" << endl;
         
         f->Close();
         delete f;
