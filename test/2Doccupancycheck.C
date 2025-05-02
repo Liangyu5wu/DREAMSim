@@ -122,8 +122,7 @@ int Plot2dposition(
     TCanvas* c = new TCanvas("c1", "Combined Histogram", 800, 600);
     
     stringstream titleStr;
-    titleStr << "Photon Distribution - " 
-             << totalProcessedEvents << " events (" 
+    titleStr << totalProcessedEvents << " events (" 
              << 1000/xBins << "x" << 1000/yBins << " #mu m^{2} )";
     h2->SetTitle(titleStr.str().c_str());
     h2->SetXTitle("x [cm]");
