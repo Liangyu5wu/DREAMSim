@@ -19,6 +19,10 @@ using namespace std;
 namespace fs = std::filesystem;
 
 
+// Plot2dposition(10, 19, "./testdata/", 10.0, SAVE_PNG, 40, 40, -4.21, -4.11, 4.48, 4.58)
+// Plot2dposition(10, 19, "./testdata/", 0.0, SAVE_ROOT, 80, 80, -4.21, -4.11, 4.48, 4.58)
+
+
 enum SaveMode {
     SAVE_PNG = 0, 
     SAVE_ROOT = 1
@@ -30,8 +34,7 @@ bool isInsideCircle(double x, double y, double centerX, double centerY, double r
     return (dx*dx + dy*dy) <= radius*radius;
 }
 
-// Plot2dposition(10, 19, "./testdata/", 10.0, SAVE_PNG, 40, 40, -4.21, -4.11, 4.48, 4.58)
-// Plot2dposition(10, 19, "./testdata/", 0.0, SAVE_ROOT, 80, 80, -4.21, -4.11, 4.48, 4.58)
+
 
 int Plot2dposition(
     int numFiles = 1,                // Number of files to process (1-10)
@@ -307,5 +310,40 @@ int Plot2dposition(
     }
     cout << "- Output saved to: " << outputFileName << endl;
     
+    return 0;
+}
+
+int main(int argc, char* argv[]) {
+    double deadTime = 0.0;
+    
+    if (argc > 1) {
+        deadTime = atof(argv[1]);
+    } else {
+        cout << "Please enter the deadTime value (in ns): ";
+        cin >> deadTime;
+    }
+    
+    cout << "Running with deadTime = " << deadTime << " ns" << endl;
+    
+    vector<pair<int, int>> binConfigurations = {
+        {20, 20},
+        {25, 25},
+        {50, 50},
+        {100, 100}
+    };
+    
+    for (const auto& binConfig : binConfigurations) {
+        int xBins = binConfig.first;
+        int yBins = binConfig.second;
+        
+        cout << "\n\n==============================================" << endl;
+        cout << "Running with " << xBins << "x" << yBins << " bins" << endl;
+        cout << "==============================================" << endl;
+        
+        Plot2dposition(10, 19, "./testdata/", deadTime, SAVE_ROOT, 
+                      xBins, yBins, -4.21, -4.11, 4.48, 4.58);
+    }
+    
+    cout << "\nAll configurations completed successfully!" << endl;
     return 0;
 }
