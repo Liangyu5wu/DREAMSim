@@ -237,7 +237,7 @@ int PlotDeadtimeComparison(
     TString circle1Text = Form("R = %.4f cm (%.1f%%)", radius1, actualRatio1 * 100);
     TString circle2Text = Form("R = %.4f cm (%.1f%%)", radius2, actualRatio2 * 100);
     
-    TLegend* legend = new TLegend(0.15, 0.75, 0.45, 0.90);
+    TLegend* legend = new TLegend(0.10, 0.75, 0.40, 0.90);
     legend->SetBorderSize(0);
     legend->SetFillColor(0);
     legend->SetFillStyle(0); 
