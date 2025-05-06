@@ -18,7 +18,7 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-
+// root -l -q 'deadtimecheck.C(0.0)'
 // Plot2dposition(10, 19, "./testdata/", 10.0, SAVE_PNG, 40, 40, -4.21, -4.11, 4.48, 4.58)
 // Plot2dposition(10, 19, "./testdata/", 0.0, SAVE_ROOT, 80, 80, -4.21, -4.11, 4.48, 4.58)
 
@@ -313,16 +313,7 @@ int Plot2dposition(
     return 0;
 }
 
-int main(int argc, char* argv[]) {
-    double deadTime = 0.0;
-    
-    if (argc > 1) {
-        deadTime = atof(argv[1]);
-    } else {
-        cout << "Please enter the deadTime value (in ns): ";
-        cin >> deadTime;
-    }
-    
+void deadtimecheck(double deadTime = 0.0) {
     cout << "Running with deadTime = " << deadTime << " ns" << endl;
     
     vector<pair<int, int>> binConfigurations = {
@@ -345,5 +336,4 @@ int main(int argc, char* argv[]) {
     }
     
     cout << "\nAll configurations completed successfully!" << endl;
-    return 0;
 }
