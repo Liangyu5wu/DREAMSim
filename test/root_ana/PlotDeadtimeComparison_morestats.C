@@ -45,16 +45,13 @@ double calculateCircleRatio(TH2F* hist, double centerX, double centerY, double r
             double binContent = hist->GetBinContent(i, j);
             if (binContent <= 0) continue;
             
-            // Get bin center
             double binX = xMin + (i - 0.5) * binWidth_x;
             double binY = yMin + (j - 0.5) * binWidth_y;
-            
-            // Calculate distance from circle center
+
             double dx = binX - centerX;
             double dy = binY - centerY;
             double distance = sqrt(dx*dx + dy*dy);
             
-            // Add counts if inside circle
             if (distance <= radius) {
                 countsInCircle += binContent;
             }
@@ -64,14 +61,12 @@ double calculateCircleRatio(TH2F* hist, double centerX, double centerY, double r
     return (totalCounts > 0) ? countsInCircle / totalCounts : 0.0;
 }
 
-// Function to find radius for a target ratio
 double findRadiusForTargetRatio(TH2F* hist, double centerX, double centerY, double targetRatio, double startRadius = 0.04, double minRadius = 0.01, double step = 0.0001) {
     double radius = startRadius;
     double ratio = calculateCircleRatio(hist, centerX, centerY, radius);
     
     cout << "Starting search with radius: " << radius << ", ratio: " << ratio * 100 << "%" << endl;
     
-    // Reduce radius until we reach the target ratio
     while (ratio > targetRatio && radius > minRadius) {
         radius -= step;
         ratio = calculateCircleRatio(hist, centerX, centerY, radius);
@@ -81,7 +76,6 @@ double findRadiusForTargetRatio(TH2F* hist, double centerX, double centerY, doub
     return radius;
 }
 
-// Function to collect reception ratio values from different regions
 void collectRatioValues(TH2F* ratioHist, double centerX, double centerY, double radius1, double radius2, 
                        vector<double>& allValues, vector<double>& circle1Values, vector<double>& circle2Values) {
     
@@ -101,19 +95,15 @@ void collectRatioValues(TH2F* ratioHist, double centerX, double centerY, double 
             double ratio = ratioHist->GetBinContent(i, j);
             if (ratio <= 0) continue;
             
-            // Get bin center
             double binX = xMin + (i - 0.5) * binWidth_x;
             double binY = yMin + (j - 0.5) * binWidth_y;
             
-            // Calculate distance from circle center
             double dx = binX - centerX;
             double dy = binY - centerY;
             double distance = sqrt(dx*dx + dy*dy);
             
-            // Add to all values
             allValues.push_back(ratio);
-            
-            // Add to appropriate vector based on location
+
             if (distance <= radius2) {
                 circle2Values.push_back(ratio);
             }
@@ -132,27 +122,23 @@ int PlotDeadtimeComparison(
     double circleRatio1 = 0.20,     // First circle target ratio (default 20%)
     double circleRatio2 = 0.15      // Second circle target ratio (default 15%)
 ) {
-    // Validate pixel size
+
     if (pixelSize != 20 && pixelSize != 25 && pixelSize != 40 && 
         pixelSize != 50 && pixelSize != 80 && pixelSize != 100) {
         cout << "Pixel size must be one of: 20, 25, 40, 50, 80, 100" << endl;
         return 1;
     }
     
-    // Validate circle ratios
     if (circleRatio1 <= 0 || circleRatio1 >= 1 || circleRatio2 <= 0 || circleRatio2 >= 1) {
         cout << "Circle ratios must be between 0 and 1" << endl;
         return 1;
     }
     
-    // Format circle percentages for display
     double circlePercent1 = circleRatio1 * 100;
     double circlePercent2 = circleRatio2 * 100;
     
-    // Calculate actual pixel size in μm
     int actualPixelSize = 1000 / pixelSize;
     
-    // Create file names
     TString noDeadtimeFileName;
     TString deadtimeFileName;
     
@@ -171,7 +157,6 @@ int PlotDeadtimeComparison(
     cout << "- With deadtime: " << deadtimeFileName << endl;
     cout << "- Circle targets: " << circlePercent1 << "% and " << circlePercent2 << "%" << endl;
     
-    // Open files
     TFile* noDeadtimeFile = TFile::Open(noDeadtimeFileName.Data());
     if (!noDeadtimeFile || noDeadtimeFile->IsZombie()) {
         cout << "Failed to open file: " << noDeadtimeFileName << endl;
@@ -185,7 +170,6 @@ int PlotDeadtimeComparison(
         return 1;
     }
     
-    // Get histograms
     TH2F* noDeadtimeHist = (TH2F*)noDeadtimeFile->Get("photonDistribution");
     if (!noDeadtimeHist) {
         cout << "Failed to get 'photonDistribution' histogram from: " << noDeadtimeFileName << endl;
@@ -354,6 +338,30 @@ int PlotDeadtimeComparison(
     double ratioMin = 0.55;
     double ratioMax = 1.1;
     int ratioBins = 80;
+
+    vector<double> filteredAllValues;
+    vector<double> filteredCircle1Values;
+    vector<double> filteredCircle2Values;
+
+    const double epsilon = 1e-6;
+    for (double val : allRatioValues) {
+        if (fabs(val - 1.0) > epsilon) {
+            filteredAllValues.push_back(val);
+        }
+    }
+
+    for (double val : circle1RatioValues) {
+        if (fabs(val - 1.0) > epsilon) {
+            filteredCircle1Values.push_back(val);
+        }
+    }
+
+    for (double val : circle2RatioValues) {
+        if (fabs(val - 1.0) > epsilon) {
+            filteredCircle2Values.push_back(val);
+        }
+    }
+
     
     TH1F* allRatioHist = new TH1F("allRatioHist", "All Regions", ratioBins, ratioMin, ratioMax);
     TH1F* circle1RatioHist = new TH1F("circle1RatioHist", "Inside Blue Circle", ratioBins, ratioMin, ratioMax);
@@ -374,13 +382,40 @@ int PlotDeadtimeComparison(
     circle2RatioHist->SetLineColor(kRed);
     circle2RatioHist->SetLineWidth(2);
 
-    double allMean = allRatioHist->GetMean();
-    double allRMS = allRatioHist->GetRMS();
-    double circle1Mean = circle1RatioHist->GetMean();
-    double circle1RMS = circle1RatioHist->GetRMS();
-    double circle2Mean = circle2RatioHist->GetMean();
-    double circle2RMS = circle2RatioHist->GetRMS();
-    
+    double allMean = 0.0, allRMS = 0.0;
+    double circle1Mean = 0.0, circle1RMS = 0.0;
+    double circle2Mean = 0.0, circle2RMS = 0.0;
+
+    if (!filteredAllValues.empty()) {
+        double sum = 0.0;
+        for (double val : filteredAllValues) sum += val;
+        allMean = sum / filteredAllValues.size();
+        
+        sum = 0.0;
+        for (double val : filteredAllValues) sum += (val - allMean) * (val - allMean);
+        allRMS = sqrt(sum / filteredAllValues.size());
+    }
+
+    if (!filteredCircle1Values.empty()) {
+        double sum = 0.0;
+        for (double val : filteredCircle1Values) sum += val;
+        circle1Mean = sum / filteredCircle1Values.size();
+        
+        sum = 0.0;
+        for (double val : filteredCircle1Values) sum += (val - circle1Mean) * (val - circle1Mean);
+        circle1RMS = sqrt(sum / filteredCircle1Values.size());
+    }
+
+    if (!filteredCircle2Values.empty()) {
+        double sum = 0.0;
+        for (double val : filteredCircle2Values) sum += val;
+        circle2Mean = sum / filteredCircle2Values.size();
+        
+        sum = 0.0;
+        for (double val : filteredCircle2Values) sum += (val - circle2Mean) * (val - circle2Mean);
+        circle2RMS = sqrt(sum / filteredCircle2Values.size());
+    }
+        
     // Calculate max height for scaling
     double maxHeight = max(max(allRatioHist->GetMaximum(), circle1RatioHist->GetMaximum()), 
                       circle2RatioHist->GetMaximum());
@@ -410,14 +445,20 @@ int PlotDeadtimeComparison(
     legend4->SetTextSize(0.03);
 
     legend4->AddEntry(allRatioHist, 
-                    Form("All Regions (Mean=%.4f, RMS=%.4f)", allMean, allRMS), 
-                    "l");
+                Form("All Regions (Mean=%.4f, RMS=%.4f)*", allMean, allRMS), 
+                "l");
     legend4->AddEntry(circle1RatioHist, 
-                    Form("Inside Blue Circle (Mean=%.4f, RMS=%.4f)", circle1Mean, circle1RMS), 
+                    Form("Inside Blue Circle (Mean=%.4f, RMS=%.4f)*", circle1Mean, circle1RMS), 
                     "l");
     legend4->AddEntry(circle2RatioHist, 
-                    Form("Inside Red Circle (Mean=%.4f, RMS=%.4f)", circle2Mean, circle2RMS), 
+                    Form("Inside Red Circle (Mean=%.4f, RMS=%.4f)*", circle2Mean, circle2RMS), 
                     "l");
+                    
+    TText* note = new TText(0.12, 0.57, "* Statistics exclude data points with ratio=1");
+    note->SetNDC();
+    note->SetTextSize(0.025);
+    note->Draw();
+
     legend4->Draw();
     
     // Save distribution canvas
@@ -436,11 +477,11 @@ int PlotDeadtimeComparison(
     circle2RatioHist->Write("InsideCircle2");
 
     TNamed* allStats = new TNamed("AllRegions_Stats", 
-                            Form("Mean=%.6f, RMS=%.6f", allMean, allRMS));
+                        Form("Mean=%.6f, RMS=%.6f (excluding ratio=1)", allMean, allRMS));
     TNamed* circle1Stats = new TNamed("InsideCircle1_Stats", 
-                                Form("Mean=%.6f, RMS=%.6f", circle1Mean, circle1RMS));
+                                Form("Mean=%.6f, RMS=%.6f (excluding ratio=1)", circle1Mean, circle1RMS));
     TNamed* circle2Stats = new TNamed("InsideCircle2_Stats", 
-                                Form("Mean=%.6f, RMS=%.6f", circle2Mean, circle2RMS));
+                                Form("Mean=%.6f, RMS=%.6f (excluding ratio=1)", circle2Mean, circle2RMS));
 
     allStats->Write();
     circle1Stats->Write();
@@ -476,10 +517,10 @@ int PlotDeadtimeComparison(
     cout << "  No Deadtime Ratio = " << std::setprecision(2) << (actualRatio2 * 100) << "%" << endl;
     cout << "  With Deadtime Ratio = " << std::setprecision(2) << (deadtimeRatio2 * 100) << "%" << endl;
     
-    cout << "\nRatio Distribution Statistics:" << endl;
-    cout << "- All Regions: " << allRatioValues.size() << " values, Mean=" << allMean << ", RMS=" << allRMS << endl;
-    cout << "- Inside Blue Circle: " << circle1RatioValues.size() << " values, Mean=" << circle1Mean << ", RMS=" << circle1RMS << endl;
-    cout << "- Inside Red Circle: " << circle2RatioValues.size() << " values, Mean=" << circle2Mean << ", RMS=" << circle2RMS << endl;
+    cout << "\nRatio Distribution Statistics (excluding ratio=1):" << endl;
+    cout << "- All Regions: " << filteredAllValues.size() << " values (of " << allRatioValues.size() << " total), Mean=" << allMean << ", RMS=" << allRMS << endl;
+    cout << "- Inside Blue Circle: " << filteredCircle1Values.size() << " values (of " << circle1RatioValues.size() << " total), Mean=" << circle1Mean << ", RMS=" << circle1RMS << endl;
+    cout << "- Inside Red Circle: " << filteredCircle2Values.size() << " values (of " << circle2RatioValues.size() << " total), Mean=" << circle2Mean << ", RMS=" << circle2RMS << endl;
     
     // Clean up
     delete c1;
