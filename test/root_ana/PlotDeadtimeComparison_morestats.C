@@ -19,6 +19,11 @@
 
 using namespace std;
 
+// root -l
+// .L PlotDeadtimeComparison.C
+// PlotDeadtimeComparison(50,30,"../deadtimedata/", 0.5,0.2)
+
+
 // Function to calculate the ratio of counts inside a circle to total counts
 double calculateCircleRatio(TH2F* hist, double centerX, double centerY, double radius) {
     double countsInCircle = 0.0;
@@ -78,7 +83,7 @@ double findRadiusForTargetRatio(TH2F* hist, double centerX, double centerY, doub
 
 // Function to collect reception ratio values from different regions
 void collectRatioValues(TH2F* ratioHist, double centerX, double centerY, double radius1, double radius2, 
-                       vector<double>& outerValues, vector<double>& middleValues, vector<double>& innerValues) {
+                       vector<double>& allValues, vector<double>& circle1Values, vector<double>& circle2Values) {
     
     int xBins = ratioHist->GetNbinsX();
     int yBins = ratioHist->GetNbinsY();
@@ -105,13 +110,16 @@ void collectRatioValues(TH2F* ratioHist, double centerX, double centerY, double 
             double dy = binY - centerY;
             double distance = sqrt(dx*dx + dy*dy);
             
+            // Add to all values
+            allValues.push_back(ratio);
+            
             // Add to appropriate vector based on location
             if (distance <= radius2) {
-                innerValues.push_back(ratio);
-            } else if (distance <= radius1) {
-                middleValues.push_back(ratio);
-            } else {
-                outerValues.push_back(ratio);
+                circle2Values.push_back(ratio);
+            }
+            
+            if (distance <= radius1) {
+                circle1Values.push_back(ratio);
             }
         }
     }
@@ -335,79 +343,80 @@ int PlotDeadtimeComparison(
     c3->SaveAs(ratioOutFileName.Data());
     
     // Collect ratio values for different regions
-    vector<double> outerRatioValues;
-    vector<double> middleRatioValues;
-    vector<double> innerRatioValues;
+    vector<double> allRatioValues;
+    vector<double> circle1RatioValues;
+    vector<double> circle2RatioValues;
     
     collectRatioValues(ratioHist, centerX, centerY, radius1, radius2, 
-                  outerRatioValues, middleRatioValues, innerRatioValues);
+                  allRatioValues, circle1RatioValues, circle2RatioValues);
     
     // Create histograms for the ratio distributions
-    double ratioMin = 0.5;
+    double ratioMin = 0.55;
     double ratioMax = 1.1;
-    int ratioBins = 100;
+    int ratioBins = 80;
     
-    TH1F* outerRatioHist = new TH1F("outerRatioHist", "Outside Circle 1", ratioBins, ratioMin, ratioMax);
-    TH1F* middleRatioHist = new TH1F("middleRatioHist", "Between Circles", ratioBins, ratioMin, ratioMax);
-    TH1F* innerRatioHist = new TH1F("innerRatioHist", "Inside Circle 2", ratioBins, ratioMin, ratioMax);
-    
+    TH1F* allRatioHist = new TH1F("allRatioHist", "All Regions", ratioBins, ratioMin, ratioMax);
+    TH1F* circle1RatioHist = new TH1F("circle1RatioHist", "Inside Blue Circle", ratioBins, ratioMin, ratioMax);
+    TH1F* circle2RatioHist = new TH1F("circle2RatioHist", "Inside Red Circle", ratioBins, ratioMin, ratioMax);
 
-    for (double val : outerRatioValues) outerRatioHist->Fill(val);
-    for (double val : middleRatioValues) middleRatioHist->Fill(val);
-    for (double val : innerRatioValues) innerRatioHist->Fill(val);
-    
-    
-    outerRatioHist->SetLineColor(kGreen);
-    outerRatioHist->SetLineWidth(2);
-    
-    middleRatioHist->SetLineColor(kBlue);
-    middleRatioHist->SetLineWidth(2);
-    
-    innerRatioHist->SetLineColor(kRed);
-    innerRatioHist->SetLineWidth(2);
+    // Fill histograms
+    for (double val : allRatioValues) allRatioHist->Fill(val);
+    for (double val : circle1RatioValues) circle1RatioHist->Fill(val);
+    for (double val : circle2RatioValues) circle2RatioHist->Fill(val);
 
-    double outerMean = outerRatioHist->GetMean();
-    double outerRMS = outerRatioHist->GetRMS();
-    double middleMean = middleRatioHist->GetMean();
-    double middleRMS = middleRatioHist->GetRMS();
-    double innerMean = innerRatioHist->GetMean();
-    double innerRMS = innerRatioHist->GetRMS();
+    // Set histogram styles
+    allRatioHist->SetLineColor(kBlack);
+    allRatioHist->SetLineWidth(2);
+
+    circle1RatioHist->SetLineColor(kBlue);
+    circle1RatioHist->SetLineWidth(2);
+
+    circle2RatioHist->SetLineColor(kRed);
+    circle2RatioHist->SetLineWidth(2);
+
+    double allMean = allRatioHist->GetMean();
+    double allRMS = allRatioHist->GetRMS();
+    double circle1Mean = circle1RatioHist->GetMean();
+    double circle1RMS = circle1RatioHist->GetRMS();
+    double circle2Mean = circle2RatioHist->GetMean();
+    double circle2RMS = circle2RatioHist->GetRMS();
     
     // Calculate max height for scaling
-    double maxHeight = max(max(outerRatioHist->GetMaximum(), middleRatioHist->GetMaximum()), 
-                      innerRatioHist->GetMaximum());
+    double maxHeight = max(max(allRatioHist->GetMaximum(), circle1RatioHist->GetMaximum()), 
+                      circle2RatioHist->GetMaximum());
     
     // Create canvas for ratio distribution
     TCanvas* c4 = new TCanvas("c4", "Ratio Distribution", 900, 700);
     c4->SetLogy(1);
     
     // Set histogram properties
-    outerRatioHist->SetTitle(Form("Reception Ratio Distribution - %dx%d #mu m^{2}, Deadtime %.1f ns", 
-                             actualPixelSize, actualPixelSize, deadtime));
-    outerRatioHist->SetXTitle("Reception Ratio (Deadtime/No Deadtime)");
-    outerRatioHist->SetYTitle("Frequency");
-    outerRatioHist->SetMaximum(maxHeight * 5);
-    outerRatioHist->SetMinimum(0.5);
-    
+    allRatioHist->SetTitle(Form("Reception Ratio Distribution - %dx%d #mu m^{2}, Deadtime %.1f ns", 
+                         actualPixelSize, actualPixelSize, deadtime));
+    allRatioHist->SetXTitle("Reception Ratio (Deadtime/No Deadtime)");
+    allRatioHist->SetYTitle("Frequency");
+    allRatioHist->SetMaximum(maxHeight * 5);
+    allRatioHist->SetMinimum(0.5);
+
     // Draw histograms
-    outerRatioHist->Draw("hist");
-    middleRatioHist->Draw("hist same");
-    innerRatioHist->Draw("hist same");
-    
+    allRatioHist->Draw("hist");
+    circle1RatioHist->Draw("hist same");
+    circle2RatioHist->Draw("hist same");
+
     // Add legend
-    TLegend* legend4 = new TLegend(0.52, 0.60, 0.89, 0.85);
+    TLegend* legend4 = new TLegend(0.12, 0.60, 0.59, 0.9);
     legend4->SetBorderSize(0);
     legend4->SetFillColor(0);
     legend4->SetFillStyle(0);
+    legend4->SetTextSize(0.03);
 
-    legend4->AddEntry(outerRatioHist, 
-                    Form("Outside Blue Circle (Mean=%.4f, RMS=%.4f)", outerMean, outerRMS), 
+    legend4->AddEntry(allRatioHist, 
+                    Form("All Regions (Mean=%.4f, RMS=%.4f)", allMean, allRMS), 
                     "l");
-    legend4->AddEntry(middleRatioHist, 
-                    Form("Between Circles (Mean=%.4f, RMS=%.4f)", middleMean, middleRMS), 
+    legend4->AddEntry(circle1RatioHist, 
+                    Form("Inside Blue Circle (Mean=%.4f, RMS=%.4f)", circle1Mean, circle1RMS), 
                     "l");
-    legend4->AddEntry(innerRatioHist, 
-                    Form("Inside Red Circle (Mean=%.4f, RMS=%.4f)", innerMean, innerRMS), 
+    legend4->AddEntry(circle2RatioHist, 
+                    Form("Inside Red Circle (Mean=%.4f, RMS=%.4f)", circle2Mean, circle2RMS), 
                     "l");
     legend4->Draw();
     
@@ -421,34 +430,21 @@ int PlotDeadtimeComparison(
                               deadtime, pixelSize, pixelSize);
     TFile* outFile = new TFile(rootOutFileName.Data(), "RECREATE");
     
-    // Save circle information
-    TNamed* circleInfo1 = new TNamed("CircleInfo1", 
-                                    Form("Radius=%.4f cm, NoDeadtimeRatio=%.2f%%, DeadtimeRatio=%.2f%%", 
-                                         radius1, actualRatio1*100, deadtimeRatio1*100));
-    
-    TNamed* circleInfo2 = new TNamed("CircleInfo2", 
-                                    Form("Radius=%.4f cm, NoDeadtimeRatio=%.2f%%, DeadtimeRatio=%.2f%%", 
-                                         radius2, actualRatio2*100, deadtimeRatio2*100));
-    
-    TNamed* pixelInfo = new TNamed("PixelInfo", 
-                                  Form("PixelSize=%dx%d, ActualSize=%dx%d µm², Deadtime=%.1f ns", 
-                                       pixelSize, pixelSize, actualPixelSize, actualPixelSize, deadtime));
-    
     // Save histograms
-    outerRatioHist->Write("OutsideCircle1");
-    middleRatioHist->Write("BetweenCircles");
-    innerRatioHist->Write("InsideCircle2");
+    allRatioHist->Write("AllRegions");
+    circle1RatioHist->Write("InsideCircle1");
+    circle2RatioHist->Write("InsideCircle2");
 
-    TNamed* outerStats = new TNamed("OutsideCircle1_Stats", 
-                              Form("Mean=%.6f, RMS=%.6f", outerMean, outerRMS));
-    TNamed* middleStats = new TNamed("BetweenCircles_Stats", 
-                                Form("Mean=%.6f, RMS=%.6f", middleMean, middleRMS));
-    TNamed* innerStats = new TNamed("InsideCircle2_Stats", 
-                                Form("Mean=%.6f, RMS=%.6f", innerMean, innerRMS));
+    TNamed* allStats = new TNamed("AllRegions_Stats", 
+                            Form("Mean=%.6f, RMS=%.6f", allMean, allRMS));
+    TNamed* circle1Stats = new TNamed("InsideCircle1_Stats", 
+                                Form("Mean=%.6f, RMS=%.6f", circle1Mean, circle1RMS));
+    TNamed* circle2Stats = new TNamed("InsideCircle2_Stats", 
+                                Form("Mean=%.6f, RMS=%.6f", circle2Mean, circle2RMS));
 
-    outerStats->Write();
-    middleStats->Write();
-    innerStats->Write();
+    allStats->Write();
+    circle1Stats->Write();
+    circle2Stats->Write();
     
     // Also save 2D histograms
     TH2F* noDeadtimeHistCopy = (TH2F*)noDeadtimeHist->Clone("NoDeadtimeHist");
@@ -459,10 +455,6 @@ int PlotDeadtimeComparison(
     deadtimeHistCopy->Write();
     ratioHistCopy->Write();
     
-    // Save circle info
-    circleInfo1->Write();
-    circleInfo2->Write();
-    pixelInfo->Write();
     
     outFile->Close();
     
@@ -484,11 +476,10 @@ int PlotDeadtimeComparison(
     cout << "  No Deadtime Ratio = " << std::setprecision(2) << (actualRatio2 * 100) << "%" << endl;
     cout << "  With Deadtime Ratio = " << std::setprecision(2) << (deadtimeRatio2 * 100) << "%" << endl;
     
-    // Stats for ratio distributions
     cout << "\nRatio Distribution Statistics:" << endl;
-    cout << "- Outside Circle 1: " << outerRatioValues.size() << " values" << endl;
-    cout << "- Between Circles: " << middleRatioValues.size() << " values" << endl;
-    cout << "- Inside Circle 2: " << innerRatioValues.size() << " values" << endl;
+    cout << "- All Regions: " << allRatioValues.size() << " values, Mean=" << allMean << ", RMS=" << allRMS << endl;
+    cout << "- Inside Blue Circle: " << circle1RatioValues.size() << " values, Mean=" << circle1Mean << ", RMS=" << circle1RMS << endl;
+    cout << "- Inside Red Circle: " << circle2RatioValues.size() << " values, Mean=" << circle2Mean << ", RMS=" << circle2RMS << endl;
     
     // Clean up
     delete c1;
