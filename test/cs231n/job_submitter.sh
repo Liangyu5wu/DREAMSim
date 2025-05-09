@@ -13,6 +13,6 @@
 unset KRB5CCNAME
 export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase
 export ALRB_CONT_CMDOPTS="-B /sdf,/fs,/lscratch"
-export ALRB_CONT_RUNPAYLOAD="source /sdf/data/atlas/u/liangyu/vertextiming/user.scheong.mc21_14TeV.601229.PhPy8EG_A14_ttbar_hdamp258p75_SingleLep.SuperNtuple.e8514_s4345_r15583.20250219_Output/myJobPayload.sh"
+export ALRB_CONT_RUNPAYLOAD="source /fs/ddn/sdf/group/atlas/d/liangyu/dSiPM/cs231n/myJobPayload.sh"
 
 source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh -c el9 –pwd $PWD
