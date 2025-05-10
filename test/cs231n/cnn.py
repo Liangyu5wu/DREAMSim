@@ -139,7 +139,7 @@ def train_until_convergence(train_data, val_data, test_data, input_shape, max_ro
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),  
                       loss={'output_particle': 'categorical_crossentropy', 
                             'output_energy': 'mean_squared_logarithmic_error'},
-                      loss_weights={'output_particle': 0.5, 'output_energy': 1.5},  
+                      loss_weights={'output_particle': 0.5, 'output_energy': 2.0},  
                       metrics={'output_particle': 'accuracy', 'output_energy': 'mae'})
 
         early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=patience) 
