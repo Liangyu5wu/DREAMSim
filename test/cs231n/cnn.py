@@ -11,14 +11,16 @@ def load_data(file_path, group_name):
         hist2d_data = group['hist2d_data'][:]
         
         esum = np.sum(hist2d_data, axis=(1, 2))
+
+        n_events, height, width = hist2d_data.shape
         
-    return beamE, hist2d_data, esum
+    return beamE, hist2d_data, esum, (height, width)
 
 def concatenate_data(data_list):
     concatenated_beamE = np.concatenate([data[0] for data in data_list], axis=0)
     concatenated_hist2d_data = np.concatenate([data[1] for data in data_list], axis=0)
     concatenated_esum = np.concatenate([data[2] for data in data_list], axis=0)
-    return concatenated_beamE, concatenated_hist2d_data, concatenated_esum
+    return concatenated_beamE, concatenated_hist2d_data, concatenated_esum, data_list[0][3]
 
 def split_data(beamE, hist2d_data, esum, labels_particle, split_ratio=(0.7, 0.2, 0.1)):
     total_samples = beamE.shape[0]
@@ -74,26 +76,53 @@ def build_model(input_shape):
     model = models.Model(inputs=[input_img, input_esum], outputs=[output_particle, output_energy])
     return model
 
+def plot_loss(history):
+    plt.figure(figsize=(12, 6))
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Training and Validation Loss')
+    plt.savefig('loss_vs_epoch.png')
+
 particle_types = ['e+', 'e-', 'pi+', 'pi-']
+energy_ranges = ['E1-100', 'E30-70']
 
-data_list = []
-for particle in particle_types:
-    file_path = f'{particle}_E1-100_2000.h5'
-    group_name = f'{particle}_E1-100_2000'
-    data_list.append(load_data(file_path, group_name))
+beamE_list = []
+hist2d_data_list = []
+esum_list = []
+particles_type_list = []
+data_shape = None
 
-beamE, hist2d_data, esum = concatenate_data(data_list)
+for i, particle in enumerate(particle_types):
+    for energy_range in energy_ranges:
+        file_path = f'{particle}_{energy_range}_2000.h5'
+        group_name = f'{particle}_{energy_range}_2000'
+        beamE, hist2d_data, esum, shape = load_data(file_path, group_name)
+  
+        beamE_list.append(beamE)
+        hist2d_data_list.append(hist2d_data)
+        esum_list.append(esum)
+        
+        particles_type_list.append(np.full(beamE.shape[0], i))
+        data_shape = shape  
 
-particles_type = np.concatenate([np.full(2000, i) for i in range(4)], axis=0)
+beamE = np.concatenate(beamE_list, axis=0)
+hist2d_data = np.concatenate(hist2d_data_list, axis=0)
+esum = np.concatenate(esum_list, axis=0)
+particles_type = np.concatenate(particles_type_list, axis=0)
+
 labels_particle = tf.keras.utils.to_categorical(particles_type, num_classes=4)
 
-hist2d_data = hist2d_data.reshape((-1, 57, 49, 1))
+height, width = data_shape
+hist2d_data = hist2d_data.reshape((-1, height, width, 1))
 
 (train_beamE, train_hist2d_data, train_esum, train_labels_particle), \
 (val_beamE, val_hist2d_data, val_esum, val_labels_particle), \
 (test_beamE, test_hist2d_data, test_esum, test_labels_particle) = split_data(beamE, hist2d_data, esum, labels_particle)
 
-input_shape = (57, 49, 1)
+input_shape = (height, width, 1)
 model = build_model(input_shape)
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
               loss={'output_particle': 'categorical_crossentropy', 'output_energy': 'mean_squared_logarithmic_error'},
@@ -109,16 +138,6 @@ history = model.fit([train_hist2d_data, train_esum],
                     batch_size=128,
                     callbacks=[early_stopping, checkpoint])
 
-def plot_loss(history):
-    plt.figure(figsize=(12, 6))
-    plt.plot(history.history['loss'], label='Training Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.title('Training and Validation Loss')
-    plt.savefig('loss_vs_epoch.png')
-
 plot_loss(history)
 
 model = tf.keras.models.load_model('best_model.keras')
@@ -132,11 +151,14 @@ predictions_particle_classes = np.argmax(predictions_particle, axis=1)
 particle_accuracy = np.mean(predictions_particle_classes == np.argmax(test_labels_particle, axis=1))
 print(f'Test Particle Type Accuracy: {particle_accuracy}')
 
+particle_labels = ['e+', 'e-', 'pi+', 'pi-']
+true_labels = np.argmax(test_labels_particle, axis=1)
 plt.figure(figsize=(12, 6))
-plt.hist(np.argmax(test_labels_particle, axis=1), alpha=0.5, label='True Particle Types')
-plt.hist(predictions_particle_classes, alpha=0.5, label='Predicted Particle Types')
+plt.hist(true_labels, bins=np.arange(len(particle_labels) + 1) - 0.5, alpha=0.5, label='True Particle Types')
+plt.hist(predictions_particle_classes, bins=np.arange(len(particle_labels) + 1) - 0.5, alpha=0.5, label='Predicted Particle Types')
 plt.xlabel('Particle Types')
 plt.ylabel('Frequency')
+plt.xticks(np.arange(len(particle_labels)), particle_labels)
 plt.legend()
 plt.title('True vs Predicted Particle Types')
 plt.savefig('particle_types_histogram.png')
