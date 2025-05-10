@@ -1,8 +1,9 @@
 import h5py
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers, models
 import matplotlib.pyplot as plt
+from tensorflow.keras import layers, models
+from sklearn.preprocessing import StandardScaler
 
 def load_data(file_path, group_name):
     with h5py.File(file_path, 'r') as f:
@@ -76,7 +77,7 @@ def build_model(input_shape):
     model = models.Model(inputs=[input_img, input_esum], outputs=[output_particle, output_energy])
     return model
 
-def plot_loss(history):
+def plot_loss(history, save_file='loss_vs_epoch.png'):
     plt.figure(figsize=(12, 6))
     plt.plot(history.history['loss'], label='Training Loss')
     plt.plot(history.history['val_loss'], label='Validation Loss')
@@ -84,7 +85,7 @@ def plot_loss(history):
     plt.ylabel('Loss')
     plt.legend()
     plt.title('Training and Validation Loss')
-    plt.savefig('loss_vs_epoch.png')
+    plt.savefig(save_file)
 
 particle_types = ['e+', 'e-', 'pi+', 'pi-']
 energy_ranges = ['E1-100', 'E30-70']
@@ -113,6 +114,9 @@ hist2d_data = np.concatenate(hist2d_data_list, axis=0)
 esum = np.concatenate(esum_list, axis=0)
 particles_type = np.concatenate(particles_type_list, axis=0)
 
+scaler = StandardScaler()
+beamE = scaler.fit_transform(beamE.reshape(-1, 1)).flatten()
+
 labels_particle = tf.keras.utils.to_categorical(particles_type, num_classes=4)
 
 height, width = data_shape
@@ -123,36 +127,61 @@ hist2d_data = hist2d_data.reshape((-1, height, width, 1))
 (test_beamE, test_hist2d_data, test_esum, test_labels_particle) = split_data(beamE, hist2d_data, esum, labels_particle)
 
 input_shape = (height, width, 1)
-model = build_model(input_shape)
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-              loss={'output_particle': 'categorical_crossentropy', 'output_energy': 'mean_squared_logarithmic_error'},
-              metrics={'output_particle': 'accuracy', 'output_energy': 'mae'})
 
-early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=6)
-checkpoint = tf.keras.callbacks.ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True)
+def train_until_convergence(train_data, val_data, test_data, input_shape, max_rounds=10, epochs_per_round=30):
+    best_val_loss = np.inf
+    round_counter = 0
+    
+    while round_counter < max_rounds:
+        model = build_model(input_shape)
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+                      loss={'output_particle': 'categorical_crossentropy', 'output_energy': 'mean_squared_logarithmic_error'},
+                      metrics={'output_particle': 'accuracy', 'output_energy': 'mae'})
 
-history = model.fit([train_hist2d_data, train_esum],
-                    [train_labels_particle, train_beamE.reshape((-1, 1))],
-                    validation_data=([val_hist2d_data, val_esum], [val_labels_particle, val_beamE.reshape((-1, 1))]),
-                    epochs=25,
-                    batch_size=128,
-                    callbacks=[early_stopping, checkpoint])
+        early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=6)
+        checkpoint = tf.keras.callbacks.ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True)
 
-plot_loss(history)
+        history = model.fit(train_data[0],
+                            train_data[1],
+                            validation_data=(val_data[0], val_data[1]),
+                            epochs=epochs_per_round,
+                            batch_size=128,
+                            callbacks=[early_stopping, checkpoint])
 
-model = tf.keras.models.load_model('best_model.keras')
+        plot_loss(history, save_file=f'loss_vs_epoch_round_{round_counter}.png')
 
-loss, acc_particle, mae_energy = model.evaluate([test_hist2d_data, test_esum], [test_labels_particle, test_beamE.reshape((-1, 1))])
+        model = tf.keras.models.load_model('best_model.keras')
+        val_loss = model.evaluate(val_data[0], val_data[1])[0]
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            round_counter += 1
+        else:
+            print(f"Validation loss did not improve after {round_counter} rounds.")
+            break
+    
+    return model
+
+train_data = ([train_hist2d_data, train_esum], [train_labels_particle, train_beamE.reshape((-1, 1))])
+val_data = ([val_hist2d_data, val_esum], [val_labels_particle, val_beamE.reshape((-1, 1))])
+test_data = ([test_hist2d_data, test_esum], [test_labels_particle, test_beamE.reshape((-1, 1))])
+
+best_model = train_until_convergence(train_data, val_data, test_data, input_shape)
+
+predicted_energy_scaled = best_model.predict(test_data[0])[1]
+predicted_energy = scaler.inverse_transform(predicted_energy_scaled)
+
+loss, acc_particle, mae_energy = best_model.evaluate(test_data[0], test_data[1])
 print(f'Test Loss: {loss}, Test Particle Accuracy: {acc_particle}, Test Energy MAE: {mae_energy}')
 
-predictions_particle, predictions_energy = model.predict([test_hist2d_data, test_esum])
+predictions_particle, _ = best_model.predict(test_data[0])
 predictions_particle_classes = np.argmax(predictions_particle, axis=1)
 
-particle_accuracy = np.mean(predictions_particle_classes == np.argmax(test_labels_particle, axis=1))
+particle_accuracy = np.mean(predictions_particle_classes == np.argmax(test_data[1][0], axis=1))
 print(f'Test Particle Type Accuracy: {particle_accuracy}')
 
 particle_labels = ['e+', 'e-', 'pi+', 'pi-']
-true_labels = np.argmax(test_labels_particle, axis=1)
+true_labels = np.argmax(test_data[1][0], axis=1)
 plt.figure(figsize=(12, 6))
 plt.hist(true_labels, bins=np.arange(len(particle_labels) + 1) - 0.5, alpha=0.5, label='True Particle Types')
 plt.hist(predictions_particle_classes, bins=np.arange(len(particle_labels) + 1) - 0.5, alpha=0.5, label='Predicted Particle Types')
@@ -164,7 +193,7 @@ plt.title('True vs Predicted Particle Types')
 plt.savefig('particle_types_histogram.png')
 
 plt.figure(figsize=(12, 6))
-plt.scatter(test_beamE.reshape((-1)), predictions_energy, alpha=0.5, label='Predicted vs True Energy')
+plt.scatter(scaler.inverse_transform(test_data[1][1]).flatten(), predicted_energy, alpha=0.5, label='Predicted vs True Energy')
 plt.xlabel('True Energy')
 plt.ylabel('Predicted Energy')
 plt.legend()
