@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models
+import matplotlib.pyplot as plt
 
 def load_data(file_path, group_name):
     with h5py.File(file_path, 'r') as f:
@@ -99,14 +100,54 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
               metrics={'output_particle': 'accuracy', 'output_energy': 'mae'})
 
 early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
-
-model.summary()
+checkpoint = tf.keras.callbacks.ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True)
 
 history = model.fit([train_hist2d_data, train_esum],
                     [train_labels_particle, train_beamE.reshape((-1, 1))],
                     validation_data=([val_hist2d_data, val_esum], [val_labels_particle, val_beamE.reshape((-1, 1))]),
                     epochs=15,
                     batch_size=128,
-                    callbacks=[early_stopping])
+                    callbacks=[early_stopping, checkpoint])
 
-model.evaluate([test_hist2d_data, test_esum], [test_labels_particle, test_beamE.reshape((-1, 1))])
+def plot_loss(history):
+    plt.figure(figsize=(12, 6))
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Training and Validation Loss')
+    plt.savefig('loss_vs_epoch.png')
+    plt.show()
+
+plot_loss(history)
+
+model = tf.keras.models.load_model('best_model.keras')
+
+loss, acc_particle, mae_energy = model.evaluate([test_hist2d_data, test_esum], [test_labels_particle, test_beamE.reshape((-1, 1))])
+print(f'Test Loss: {loss}, Test Particle Accuracy: {acc_particle}, Test Energy MAE: {mae_energy}')
+
+predictions_particle, predictions_energy = model.predict([test_hist2d_data, test_esum])
+predictions_particle_classes = np.argmax(predictions_particle, axis=1)
+
+particle_accuracy = np.mean(predictions_particle_classes == np.argmax(test_labels_particle, axis=1))
+print(f'Test Particle Type Accuracy: {particle_accuracy}')
+
+plt.figure(figsize=(12, 6))
+plt.hist(np.argmax(test_labels_particle, axis=1), alpha=0.5, label='True Particle Types')
+plt.hist(predictions_particle_classes, alpha=0.5, label='Predicted Particle Types')
+plt.xlabel('Particle Types')
+plt.ylabel('Frequency')
+plt.legend()
+plt.title('True vs Predicted Particle Types')
+plt.savefig('particle_types_histogram.png')
+plt.show()
+
+plt.figure(figsize=(12, 6))
+plt.scatter(test_beamE.reshape((-1)), predictions_energy, alpha=0.5, label='Predicted vs True Energy')
+plt.xlabel('True Energy')
+plt.ylabel('Predicted Energy')
+plt.legend()
+plt.title('True vs Predicted Energy')
+plt.savefig('energy_scatter.png')
+plt.show()
