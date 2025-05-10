@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 def load_data(file_path, group_name):
     with h5py.File(file_path, 'r') as f:
         group = f[group_name]
-        beamE = group['beamE'][:]
+        beamE = group['beamE'][:] / 1000
         hist2d_data = group['hist2d_data'][:]
         
         esum = np.sum(hist2d_data, axis=(1, 2))
@@ -196,7 +196,7 @@ plt.title('True vs Predicted Particle Types')
 plt.savefig('particle_types_histogram.png')
 
 plt.figure(figsize=(12, 6))
-plt.scatter(scaler.inverse_transform(test_data[1][1]).flatten(), predicted_energy, alpha=0.5, label='Predicted vs True Energy')
+plt.scatter(test_data[1][1], predicted_energy, alpha=0.5, label='Predicted vs True Energy')
 plt.xlabel('True Energy')
 plt.ylabel('Predicted Energy')
 plt.legend()
