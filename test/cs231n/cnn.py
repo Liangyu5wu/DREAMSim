@@ -88,7 +88,8 @@ def plot_loss(history, save_file='loss_vs_epoch.png'):
     plt.savefig(save_file)
 
 particle_types = ['e+', 'e-', 'pi+', 'pi-']
-energy_ranges = ['E1-100', 'E30-70']
+# energy_ranges = ['E1-100', 'E30-70']
+energy_ranges = ['E1-100']
 
 beamE_list = []
 hist2d_data_list = []
@@ -115,7 +116,7 @@ esum = np.concatenate(esum_list, axis=0)
 particles_type = np.concatenate(particles_type_list, axis=0)
 
 scaler = StandardScaler()
-beamE = scaler.fit_transform(beamE.reshape(-1, 1)).flatten()
+esum = scaler.fit_transform(esum.reshape(-1, 1)).flatten()
 
 labels_particle = tf.keras.utils.to_categorical(particles_type, num_classes=4)
 
@@ -128,7 +129,7 @@ hist2d_data = hist2d_data.reshape((-1, height, width, 1))
 
 input_shape = (height, width, 1)
 
-def train_until_convergence(train_data, val_data, test_data, input_shape, max_rounds=10, epochs_per_round=30):
+def train_until_convergence(train_data, val_data, test_data, input_shape, max_rounds=1, epochs_per_round=30):
     best_val_loss = np.inf
     round_counter = 0
     
@@ -168,8 +169,10 @@ test_data = ([test_hist2d_data, test_esum], [test_labels_particle, test_beamE.re
 
 best_model = train_until_convergence(train_data, val_data, test_data, input_shape)
 
-predicted_energy_scaled = best_model.predict(test_data[0])[1]
-predicted_energy = scaler.inverse_transform(predicted_energy_scaled)
+# predicted_energy_scaled = best_model.predict(test_data[0])[1]
+# predicted_energy = scaler.inverse_transform(predicted_energy_scaled)
+
+predicted_energy = best_model.predict(test_data[0])[1]
 
 loss, acc_particle, mae_energy = best_model.evaluate(test_data[0], test_data[1])
 print(f'Test Loss: {loss}, Test Particle Accuracy: {acc_particle}, Test Energy MAE: {mae_energy}')
