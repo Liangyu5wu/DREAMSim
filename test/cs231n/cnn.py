@@ -87,9 +87,10 @@ def plot_loss(history, save_file='loss_vs_epoch.png'):
     plt.title('Training and Validation Loss')
     plt.savefig(save_file)
 
-particle_types = ['e+', 'e-', 'pi+', 'pi-']
-# energy_ranges = ['E1-100', 'E30-70']
-energy_ranges = ['E1-100']
+# particle_types = ['e+', 'e-', 'pi+', 'pi-']
+particle_types = ['e-', 'pi-']
+energy_ranges = ['E1-100', 'E30-70']
+# energy_ranges = ['E1-100']
 
 beamE_list = []
 hist2d_data_list = []
@@ -129,17 +130,19 @@ hist2d_data = hist2d_data.reshape((-1, height, width, 1))
 
 input_shape = (height, width, 1)
 
-def train_until_convergence(train_data, val_data, test_data, input_shape, max_rounds=1, epochs_per_round=30):
+def train_until_convergence(train_data, val_data, test_data, input_shape, max_rounds=1, epochs_per_round=20, patience=10):
     best_val_loss = np.inf
     round_counter = 0
     
     while round_counter < max_rounds:
         model = build_model(input_shape)
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-                      loss={'output_particle': 'categorical_crossentropy', 'output_energy': 'mean_squared_logarithmic_error'},
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),  
+                      loss={'output_particle': 'categorical_crossentropy', 
+                            'output_energy': 'mean_squared_logarithmic_error'},
+                      loss_weights={'output_particle': 0.5, 'output_energy': 1.5},  
                       metrics={'output_particle': 'accuracy', 'output_energy': 'mae'})
 
-        early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=6)
+        early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=patience) 
         checkpoint = tf.keras.callbacks.ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True)
 
         history = model.fit(train_data[0],
@@ -183,7 +186,8 @@ predictions_particle_classes = np.argmax(predictions_particle, axis=1)
 particle_accuracy = np.mean(predictions_particle_classes == np.argmax(test_data[1][0], axis=1))
 print(f'Test Particle Type Accuracy: {particle_accuracy}')
 
-particle_labels = ['e+', 'e-', 'pi+', 'pi-']
+# particle_labels = ['e+', 'e-', 'pi+', 'pi-']
+particle_labels = ['e-', 'pi-']
 true_labels = np.argmax(test_data[1][0], axis=1)
 plt.figure(figsize=(12, 6))
 plt.hist(true_labels, bins=np.arange(len(particle_labels) + 1) - 0.5, alpha=0.5, label='True Particle Types')
