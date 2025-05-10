@@ -99,13 +99,13 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
               loss={'output_particle': 'categorical_crossentropy', 'output_energy': 'mean_squared_logarithmic_error'},
               metrics={'output_particle': 'accuracy', 'output_energy': 'mae'})
 
-early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
+early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=6)
 checkpoint = tf.keras.callbacks.ModelCheckpoint('best_model.keras', monitor='val_loss', save_best_only=True)
 
 history = model.fit([train_hist2d_data, train_esum],
                     [train_labels_particle, train_beamE.reshape((-1, 1))],
                     validation_data=([val_hist2d_data, val_esum], [val_labels_particle, val_beamE.reshape((-1, 1))]),
-                    epochs=15,
+                    epochs=25,
                     batch_size=128,
                     callbacks=[early_stopping, checkpoint])
 
@@ -118,7 +118,6 @@ def plot_loss(history):
     plt.legend()
     plt.title('Training and Validation Loss')
     plt.savefig('loss_vs_epoch.png')
-    plt.show()
 
 plot_loss(history)
 
@@ -141,7 +140,6 @@ plt.ylabel('Frequency')
 plt.legend()
 plt.title('True vs Predicted Particle Types')
 plt.savefig('particle_types_histogram.png')
-plt.show()
 
 plt.figure(figsize=(12, 6))
 plt.scatter(test_beamE.reshape((-1)), predictions_energy, alpha=0.5, label='Predicted vs True Energy')
@@ -150,4 +148,3 @@ plt.ylabel('Predicted Energy')
 plt.legend()
 plt.title('True vs Predicted Energy')
 plt.savefig('energy_scatter.png')
-plt.show()
