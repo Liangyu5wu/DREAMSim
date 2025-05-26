@@ -84,7 +84,7 @@ void plot_ratio_vs_radius() {
                 TString graphName = Form("RatioVsRadius_Deadtime%.1fns_%dx%d", deadtime, gridSize, gridSize);
                 graph->SetName(graphName);
                 graph->SetTitle(Form("Ratio vs Distance from Center (%.1f ns, %dx%d)", deadtime, gridSize, gridSize));
-                graph->GetXaxis()->SetTitle("Distance from Center (m)");
+                graph->GetXaxis()->SetTitle("Distance from Center [cm]");
                 graph->GetYaxis()->SetTitle("Reception Ratio");
                 
                 graph->SetMarkerStyle(20);
